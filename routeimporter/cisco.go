@@ -677,7 +677,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
 
 			// process nexthop
-			if ic.LocalNexthop {
+			if !ic.RetainNexthop {
 				rr.SetNextHopMode(gosnappi.BgpV4RouteRangeNextHopMode.LOCAL_IP)
 			} else {
 				imp.Processv4Nexthop(rr, row)
@@ -709,7 +709,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
 
 			// process nexthop
-			if ic.LocalNexthop {
+			if ic.RetainNexthop {
 				rr.SetNextHopMode(gosnappi.BgpV6RouteRangeNextHopMode.LOCAL_IP)
 			} else {
 				imp.Processv6Nexthop(rr, row)

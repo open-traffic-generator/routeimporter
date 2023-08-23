@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/open-traffic-generator/routeimporter"
+	"github.com/open-traffic-generator/otg-route-importer/routeimporter"
 )
 
 func TestCreateService(t *testing.T) {
@@ -23,7 +23,7 @@ func TestCreateService(t *testing.T) {
 		return
 	}
 
-	ic := routeimporter.ImportConfig{RRType: routeimporter.RouteTypeIpv4, LocalNexthop: false, BestRoutes: true}
+	ic := routeimporter.ImportConfig{RRType: routeimporter.RouteTypeIpv4, RetainNexthop: true, BestRoutes: true}
 	err = is.ImportRoutesBuffer(ic, fb)
 	if err != nil {
 		t.Errorf(fmt.Sprintf("Could not import buffer: %v, error: %v", fb, err))
@@ -48,7 +48,7 @@ func TestCreate1MService(t *testing.T) {
 	}
 
 	//ic := routeimport.ImportConfig{RRType: routeimport.RouteTypeAuto}
-	ic := routeimporter.ImportConfig{RRType: routeimporter.RouteTypeIpv4, LocalNexthop: false, BestRoutes: false}
+	ic := routeimporter.ImportConfig{RRType: routeimporter.RouteTypeIpv4, RetainNexthop: true, BestRoutes: false}
 	err = is.ImportRoutesBuffer(ic, fb)
 	if err != nil {
 		t.Errorf(fmt.Sprintf("Could not import buffer: %v, error: %v", fb, err))
