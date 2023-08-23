@@ -1,0 +1,13 @@
+route-server.phx1>show ip bgp
+BGP table version is 547031687, local router ID is 67.17.81.28
+Status codes: s suppressed, d damped, h history, * valid, > best, i - internal,
+              r RIB-failure, S Stale, m multipath, b backup-path, x best-external
+Origin codes: i - IGP, e - EGP, ? - incomplete
+
+   Network          Next Hop            Metric LocPrf Weight Path
+* i1.0.0.0/24       67.16.148.37            50    200      0 15169 i
+*>i                 67.16.148.38            50    200      0 15169 i
+* i                 67.16.148.37            50    200      0 15169 e
+*>i                 67.16.148.37            14    300      0 6939 6939 7545 56203 i
+* i1.0.5.0/24       67.16.148.37            14    300      0 6939 6939 7545 56203 i
+*>i                 67.16.148.40            14    400      0 6939 6939 7545 56203 ?
