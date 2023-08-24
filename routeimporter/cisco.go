@@ -13,7 +13,7 @@ import (
 )
 
 type CiscoImporter struct {
-	id int64
+	id uint64
 
 	//
 	POS_CISCO_HEADER_NETWORK  int
@@ -50,6 +50,7 @@ const (
 
 type RRInfo struct {
 	Row    int
+	Name   string
 	TypeV4 bool // if IPv4 type
 	RRv4   gosnappi.BgpV4RouteRange
 	RRv6   gosnappi.BgpV6RouteRange
@@ -57,24 +58,20 @@ type RRInfo struct {
 
 // String returns the id of the client.
 func (imp *CiscoImporter) String() string {
-	//return strconv.FormatInt(imp.id, 10)
 	return fmt.Sprintf("Cisco Route Importer, session id: %8d, validRoutes:%d",
 		imp.id, imp.validRoutes)
 }
 
-func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) error {
+func (imp *CiscoImporter) ImportRoutes(ic ImportConfig, buffer *[]byte) (*[]string, error) {
 
-	// ParseAndPush
-	/*
-		OnParseAndPush();
-		CheckForSize();
-		PushToMW();
-		ClearData();
-	*/
+	if buffer == nil {
+		return nil, fmt.Errorf("cannot import - empty route buffer")
+	}
 
-	// OnParseAndPush
+	imp.ClearSession()
+	route_names := []string{}
+
 	{
-		//defer profile.LogFuncDuration(, "ImportRoutesBuffer", "", "lineprocess")
 		start := time.Now()
 
 		var lineIndex int
@@ -84,11 +81,11 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 
 		lineIndexList := []int{}
 
-		if len(buffer) > 0 {
+		if len(*buffer) > 0 {
 
 			startTask := time.Now()
 
-			lines := strings.Split(string(buffer), "\n")
+			lines := strings.Split(string(*buffer), "\n")
 
 			// reader := bytes.NewReader(buffer)
 			// better way to read incrementally??
@@ -102,51 +99,39 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 					}
 					// continue to next line
 				} else {
-					return fmt.Errorf("cannot import, error:%v", err.Error())
+					return nil, fmt.Errorf("cannot import, error:%v", err.Error())
 				}
 			}
 
 			if !headerFound {
-				return fmt.Errorf("cannot import, header not found")
+				return nil, fmt.Errorf("cannot import, header not found")
 			}
-			//headerlines := lineIndex
-			log.Info().Int64("miliseconds", time.Since(startTask).Milliseconds()).Msg("Header parsing")
-			startTask = time.Now()
+			log.Info().Int64("milisecs", time.Since(startTask).Milliseconds()).Msg("Header Parsing")
 
+			startTask = time.Now()
 			pos := imp.POS_CISCO_HEADER_NETWORK
 			var prevPrefix string
 
-			// as headers are found look for data
-			// for li, line := range lines {
 			for i := lineIndex; i < len(lines); i++ {
 				line := lines[i]
-				// if li < headerlines {
-				// 	continue
-				// }
 				space := 0
 				lineIndex++
 
 				if CheckForTabs(line) {
-					return fmt.Errorf("contains tab character")
+					return nil, fmt.Errorf("contains tab character")
 				}
 
 				lineIndexList = append(lineIndexList, lineIndex)
 
-				/*if (string.IsNullOrEmpty(line))
-				{
-					continue
-				}*/
 				if len(line) == 0 {
 					continue
 				}
 
-				/*if (IsSkippableLine(line))
-				{
+				if isSkippableLine(&line) {
 					continue
-				}*/
+				}
 
-				if !IsValidRoute(line) {
-					// TBD: SetInvalidMessage(lineIndexList, "Unsupported Format", out isLimitReached)
+				if !isValidRoute(&line) {
 					continue
 				}
 
@@ -154,26 +139,21 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 				if line[pos] == SPACE_CHAR {
 					prefix = prevPrefix
 				} else {
-					//space = line.IndexOf(SPACE_CHAR, pos)
 					space = strings.Index(line[pos:], " ")
 					if space == -1 {
-						//prefix = line.Substring(pos)
 						prefix = line[pos:]
 					} else {
-						//prefix = line.Substring(pos, space-pos)
 						prefix = line[pos:(space + pos)]
 					}
-					//log.Info().Msgf("Prefix: %s, space=%d, line=%q", prefix, space, line)
 				}
 				prevPrefix = prefix
 
-				if !ProceedIfBestRouteIsSet(ic.BestRoutes, line) {
+				if ic.BestRoutes && !isBestRoute(&line) {
 					continue
 				}
 
 				space = strings.Index(line[pos:], " ")
 				if space == -1 {
-					// line = NextLine(textReader)
 					i++
 					// TBD: add overflow check
 					line = lines[i]
@@ -189,22 +169,17 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 					continue
 				}
 
-				//space = strings.Index(line[posNextHop:], string(SPACE_CHAR))
 				space = strings.Index(line[posNextHop:], " ")
 
-				//if (IsNextHopFromFile())
-				if true {
+				if ic.RetainNexthop {
 					if space == -1 {
-						//nextHop = line.Substring(posNextHop)
 						nextHop = line[posNextHop:]
 					} else {
-						//nextHop = line.Substring(posNextHop, space - posNextHop)
 						nextHop = line[posNextHop : space+posNextHop]
 					}
 				}
 
 				if space == -1 {
-					// line = NextLine(textReader)
 					i++
 					// TBD: add overflow check
 					line = lines[i]
@@ -216,13 +191,13 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 					continue
 				}
 
-				validCheck, isLimitReached = IsValidLine(prefix, nextHop, line, lineIndexList)
-				if validCheck == false {
+				validCheck, isLimitReached = isValidLine(&prefix, &nextHop, &line, &lineIndexList)
+				if !validCheck {
 					continue
 				}
 
 				if isLimitReached {
-					// TBD
+					return nil, fmt.Errorf("maximum routes per peer has been reached")
 				}
 
 				imp.prefixLines = append(imp.prefixLines, prefix)
@@ -230,37 +205,20 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 				imp.routeLines = append(imp.routeLines, line)
 
 				imp.validRoutes++
-
-				/*if (m_prefixLines.Count == FILE_SPLIT_SIZE)
-				{
-					ProcessBatch();
-				}
-				if (GetValidRouteCount() == ((ulong)GetRouteLimit()))
-				{
-					break;
-				}*/
 			}
 
-			log.Info().Int64("miliseconds", time.Since(startTask).Milliseconds()).Msg("line parsing")
+			log.Info().Int64("milisecs", time.Since(startTask).Milliseconds()).Msg("Line Parsing")
 			startTask = time.Now()
 
-			/*if (m_prefixLines.Count > 0)
-			  {
-			      if (m_prefixLines.Count < m_routeRecords.Length)
-			          m_routeRecords[m_prefixLines.Count] = null;
-			      ProcessBatch();
-			  }
-			*/
-
-			peer := gosnappi.NewBgpV4Peer()
-
-			/*for ind := 0; ind < imp.validRoutes; ind++ {
-				imp.ProcessLines(peer, ind)
-			}*/
+			if len(ic.Targetv4Peers) == 0 {
+				log.Info().Msgf("No Target BGPv4Peers to add routes")
+				return nil, fmt.Errorf("cannot import, No Target BGPv4Peers to add routes")
+			}
+			peer := ic.Targetv4Peers[0]
 
 			if imp.validRoutes == 0 {
-				log.Info().Msgf("*** No valid routes found")
-				return nil
+				log.Info().Msgf("No valid routes found")
+				return &route_names, nil
 			}
 
 			// Add place holder route ranges
@@ -281,17 +239,13 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 			for ind := startInd; ind < imp.validRoutes; ind++ {
 				if err, rri := imp.AddRR(peer, ind, rrType); err == nil {
 					rrilist = append(rrilist, rri)
+					name := fmt.Sprintf("%s-%d", ic.SessionName, rri.Row)
+					route_names = append(route_names, name)
 				}
 			}
 
-			log.Info().Int64("miliseconds", time.Since(startTask).Milliseconds()).Msg("Add routes")
+			log.Info().Int64("milisecs", time.Since(startTask).Milliseconds()).Msg("Add Empty Route Ranges")
 			startTask = time.Now()
-
-			/*for ind := 0; ind < imp.validRoutes; ind++ {
-				peer.V4Routes().Add()
-			}
-			log.Info().Int64("miliseconds", time.Since(startTask).Milliseconds()).Msg("Add 1M routes")
-			startTask = time.Now()*/
 
 			// populate other attributes of RR
 			useSequential := false
@@ -311,40 +265,24 @@ func (imp *CiscoImporter) ImportRoutesBuffer(ic ImportConfig, buffer []byte) err
 				wg.Wait()
 			}
 
-			log.Info().Int64("miliseconds", time.Since(startTask).Milliseconds()).Msg("Process routes")
-			//startTask = time.Now()
+			log.Info().Int64("milisecs", time.Since(startTask).Milliseconds()).Msg("Process and Populate RR Attributes")
 
 			done := time.Since(start)
 			log.Info().Int64("nanoseconds", done.Nanoseconds()).Msg("")
 
-			//log.Info().Msgf("Importer Data (detail): %#v", imp)
-			//log.Info().Msgf("Peer (detail): %#v", peer)
-			if len(peer.V4Routes().Items()) < 100 {
-				for _, rr := range peer.V4Routes().Items() {
-					addr := rr.Addresses()
-					for _, aa := range addr.Items() {
-						log.Info().Msgf("RR-%q (detail): %v, %v, %v, Nexthop: %v", rr.Name(), aa.Address(), aa.Count(), aa.Prefix(), rr.NextHopIpv4Address())
-					}
-					if rr.Advanced().HasLocalPreference() {
-						log.Info().Msgf("RR-%q (detail): LocalPre: %v", rr.Name(), rr.Advanced().LocalPreference())
-					}
-					if rr.Advanced().HasIncludeMultiExitDiscriminator() {
-						log.Info().Msgf("RR-%q (detail): MED: %v", rr.Name(), rr.Advanced().MultiExitDiscriminator())
-					}
-					if rr.Advanced().HasIncludeOrigin() {
-						log.Info().Msgf("RR-%q (detail): Origin: %v", rr.Name(), rr.Advanced().Origin())
-					}
-
-				}
-			}
-
 			log.Info().Msgf("Peer: v4 routes count = %d, v6 routes count = %d", len(peer.V4Routes().Items()), len(peer.V6Routes().Items()))
 
-			return nil
+			return &route_names, nil
 		}
 	}
 
-	return fmt.Errorf("cannot import empty buffer : %q", buffer)
+	return nil, fmt.Errorf("cannot import empty buffer : %q", buffer)
+}
+
+func (imp *CiscoImporter) ClearSession() {
+	imp.prefixLines = []string{}
+	imp.nextHopLines = []string{}
+	imp.routeLines = []string{}
 }
 
 // check further -
@@ -438,89 +376,6 @@ func (imp *CiscoImporter) GetHeaderPositions(line string) (bool, error) {
 	imp.POS_CISCO_HEADER_PATH = pos
 
 	return true, nil
-}
-
-func IsValidRoute(line string) bool {
-	// if line[0] == CISCO_VALID_ROUTE {
-	// 	return true
-	// }
-	// return false
-	return line[0] == CISCO_VALID_ROUTE
-}
-
-func ProceedIfBestRouteIsSet(bestRouteOnly bool, line string) bool {
-	if !bestRouteOnly {
-		return true
-	}
-
-	if line[1] == CISCO_BEST_ROUTE {
-		return true
-	}
-	return false
-}
-
-func IsValidLine(i_prefix string, i_nextHop string, i_line string, i_lineNumbersList []int) (bool, bool) {
-
-	return true, true
-	/*var i_isLimitReached bool
-	prefix := i_prefix;
-	nextHop := i_nextHop;
-	line := i_line;
-	shift := 0;
-
-	if (!IsValidPrefix(prefix))
-	{
-		SetInvalidMessage(i_lineNumbersList, "Network Address", out i_isLimitReached);
-		return false;
-	}
-	if (IsNextHopFromFile())
-	{
-		if (!IsValidIpAddress(i_nextHop, 0))
-		{
-			SetInvalidMessage(i_lineNumbersList, "Next Hop", out i_isLimitReached);
-			return false;
-		}
-	}
-	if (!IsValidNumeric(line, POS_CISCO_HEADER_METRIC))
-	{
-		SetInvalidMessage(i_lineNumbersList, "Metric", out i_isLimitReached);
-		return false;
-	}
-
-	int posLocPrf = POS_CISCO_HEADER_LOC_PRF;
-	int space = line.IndexOf(SPACE_CHAR, posLocPrf);
-	if (space == -1)
-	{
-		shift = 0;
-	}
-	else
-	{
-		shift = space - posLocPrf;
-	}
-
-	if (!IsValidNumeric(line, POS_CISCO_HEADER_LOC_PRF + shift))
-	{
-		SetInvalidMessage(i_lineNumbersList, "Local Preference", out i_isLimitReached);
-		return false;
-	}
-	if (!IsValidNumeric(line, POS_CISCO_HEADER_WEIGHT + shift))
-	{
-		SetInvalidMessage(i_lineNumbersList, "Weight", out i_isLimitReached);
-		return false;
-	}
-	if (!IsValidAspath(line, POS_CISCO_HEADER_PATH + shift, SPACE_CHAR))
-	{
-		SetInvalidMessage(i_lineNumbersList, "AS Path", out i_isLimitReached);
-		return false;
-	}
-	if (!IsValidOrigin(line))
-	{
-		SetInvalidMessage(i_lineNumbersList, "Origin", out i_isLimitReached);
-		return false;
-	}
-
-	i_isLimitReached = false;
-	return true;*/
 }
 
 func (imp *CiscoImporter) ProcessLines(peer gosnappi.BgpV4Peer, row int) error {
@@ -673,7 +528,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			//var rr gosnappi.BgpV4RouteRange
 			//rr = peer.V4Routes().Add()
 			rr := rri.RRv4
-			rr.SetName(fmt.Sprintf("Imported-%d", row))
+			rr.SetName(fmt.Sprintf("%s-%d", ic.SessionName, row))
 			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
 
 			// process nexthop
@@ -705,7 +560,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			//var rr gosnappi.BgpV6RouteRange
 			//rr = peer.V6Routes().Add()
 			rr := rri.RRv6
-			rr.SetName(fmt.Sprintf("Imported-%d", row))
+			rr.SetName(fmt.Sprintf("%s-%d", ic.SessionName, row))
 			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
 
 			// process nexthop
@@ -893,4 +748,81 @@ func ParseNetworkAddress(line string) (net.IP, int, error) {
 	}
 
 	return ip, mask, nil
+}
+
+func isSkippableLine(line *string) bool {
+	// TBD:
+	return false
+}
+
+func isValidRoute(line *string) bool {
+	return (*line)[0] == CISCO_VALID_ROUTE
+}
+
+func isBestRoute(line *string) bool {
+	return (*line)[1] == CISCO_BEST_ROUTE
+}
+
+func isValidLine(i_prefix *string, i_nextHop *string, i_line *string, i_lineNumbersList *[]int) (bool, bool) {
+
+	return true, false
+	/*var i_isLimitReached bool
+	prefix := i_prefix;
+	nextHop := i_nextHop;
+	line := i_line;
+	shift := 0;
+
+	if (!IsValidPrefix(prefix))
+	{
+		SetInvalidMessage(i_lineNumbersList, "Network Address", out i_isLimitReached);
+		return false;
+	}
+	if (IsNextHopFromFile())
+	{
+		if (!IsValidIpAddress(i_nextHop, 0))
+		{
+			SetInvalidMessage(i_lineNumbersList, "Next Hop", out i_isLimitReached);
+			return false;
+		}
+	}
+	if (!IsValidNumeric(line, POS_CISCO_HEADER_METRIC))
+	{
+		SetInvalidMessage(i_lineNumbersList, "Metric", out i_isLimitReached);
+		return false;
+	}
+
+	int posLocPrf = POS_CISCO_HEADER_LOC_PRF;
+	int space = line.IndexOf(SPACE_CHAR, posLocPrf);
+	if (space == -1)
+	{
+		shift = 0;
+	}
+	else
+	{
+		shift = space - posLocPrf;
+	}
+
+	if (!IsValidNumeric(line, POS_CISCO_HEADER_LOC_PRF + shift))
+	{
+		SetInvalidMessage(i_lineNumbersList, "Local Preference", out i_isLimitReached);
+		return false;
+	}
+	if (!IsValidNumeric(line, POS_CISCO_HEADER_WEIGHT + shift))
+	{
+		SetInvalidMessage(i_lineNumbersList, "Weight", out i_isLimitReached);
+		return false;
+	}
+	if (!IsValidAspath(line, POS_CISCO_HEADER_PATH + shift, SPACE_CHAR))
+	{
+		SetInvalidMessage(i_lineNumbersList, "AS Path", out i_isLimitReached);
+		return false;
+	}
+	if (!IsValidOrigin(line))
+	{
+		SetInvalidMessage(i_lineNumbersList, "Origin", out i_isLimitReached);
+		return false;
+	}
+
+	i_isLimitReached = false;
+	return true;*/
 }

@@ -1,5 +1,7 @@
 package routeimporter
 
+import "github.com/open-traffic-generator/snappi/gosnappi"
+
 // route import common structure
 
 // ImportFileType specifies format of the file being imported
@@ -26,13 +28,15 @@ const (
 
 // Import configuration specified parameters to control import behavior
 type ImportConfig struct {
+	SessionName   string
 	RRType        RouteType // detect route address type
 	BestRoutes    bool      // import best routes only
 	RetainNexthop bool      // retain next hop
-
+	Targetv4Peers []gosnappi.BgpV4Peer
+	Targetv6Peers []gosnappi.BgpV6Peer
 }
 
 type ImportService interface {
-	ImportRoutesBuffer(ic ImportConfig, buffer []byte) error
+	ImportRoutes(ic ImportConfig, buffer *[]byte) (*[]string, error)
 	String() string
 }
