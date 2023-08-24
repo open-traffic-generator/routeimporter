@@ -396,7 +396,7 @@ func (imp *CiscoImporter) ProcessLines(peer gosnappi.BgpV4Peer, row int) error {
 		if v4Type {
 			var rr gosnappi.BgpV4RouteRange
 			rr = peer.V4Routes().Add()
-			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
+			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(uint32(mask))
 
 			// process other attributes
 			// process nexthop
@@ -404,7 +404,7 @@ func (imp *CiscoImporter) ProcessLines(peer gosnappi.BgpV4Peer, row int) error {
 		} else {
 			var rr gosnappi.BgpV6RouteRange
 			rr = peer.V6Routes().Add()
-			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
+			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(uint32(mask))
 
 			// process other attributes
 		}
@@ -529,7 +529,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			//rr = peer.V4Routes().Add()
 			rr := rri.RRv4
 			rr.SetName(fmt.Sprintf("%s-%d", ic.SessionName, row))
-			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
+			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(uint32(mask))
 
 			// process nexthop
 			if !ic.RetainNexthop {
@@ -561,7 +561,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			//rr = peer.V6Routes().Add()
 			rr := rri.RRv6
 			rr.SetName(fmt.Sprintf("%s-%d", ic.SessionName, row))
-			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(int32(mask))
+			rr.Addresses().Add().SetAddress(ip.String()).SetPrefix(uint32(mask))
 
 			// process nexthop
 			if ic.RetainNexthop {
@@ -639,7 +639,7 @@ func (imp *CiscoImporter) Processv4LocalPrf(rr gosnappi.BgpV4RouteRange, row int
 		if locprf, err := strconv.Atoi(token); err == nil {
 			//return nil, mask, err
 			rr.Advanced().SetIncludeLocalPreference(true)
-			rr.Advanced().SetLocalPreference(int32(locprf))
+			rr.Advanced().SetLocalPreference(uint32(locprf))
 		} else {
 			return fmt.Errorf("invalid Local Pref: %q for processing at row %d, error: %s", token, row, err.Error())
 		}
@@ -684,7 +684,7 @@ func (imp *CiscoImporter) Processv4Metric(rr gosnappi.BgpV4RouteRange, row int) 
 		if med, err := strconv.Atoi(medstr); err == nil {
 			//return nil, mask, err
 			rr.Advanced().SetIncludeMultiExitDiscriminator(true)
-			rr.Advanced().SetMultiExitDiscriminator(int32(med))
+			rr.Advanced().SetMultiExitDiscriminator(uint32(med))
 		} else {
 			return fmt.Errorf("invalid MED: %q for processing at row %d, error: %s", token, row, err.Error())
 		}
