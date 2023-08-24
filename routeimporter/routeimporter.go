@@ -6,7 +6,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var gid int64 = 0
+var gid uint64 = 0
 
 func newCiscoImporter() (ImportService, error) {
 	gid += 1
@@ -23,8 +23,8 @@ func GetImporterService(format ImportFileType) (ImportService, error) {
 	case ImportFileTypeCisco:
 		return newCiscoImporter()
 	case ImportFileTypeJuniper:
-		return nil, fmt.Errorf("support for Juniper not yet implemented")
+		return nil, fmt.Errorf("support for Juniper is not yet implemented")
+	default:
+		return nil, fmt.Errorf("unknown importer type format : %v", format)
 	}
-
-	return nil, fmt.Errorf("not supported / unknown format : %v", format)
 }
