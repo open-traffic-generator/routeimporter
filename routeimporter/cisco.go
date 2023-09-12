@@ -544,16 +544,20 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			// process MED
 			imp.Processv4Metric(rr, row)
 
-			// process ASPath
-			//imp.Processv4AsPath(rr, row)
-
 			// process origin
-			if err, origin := getOriginValue(nextLine[len(nextLine)-1:]); err == nil {
+			var origin gosnappi.BgpRouteAdvancedOriginEnum
+			if err, origin = getOriginValue(nextLine[len(nextLine)-1:]); err == nil {
 				rr.Advanced().SetIncludeOrigin(true)
 				rr.Advanced().SetOrigin(origin)
 			} else {
 				// print error
 			}
+
+			// process ASPath
+			if err = imp.Processv4AsPath(rr, row, origin); err != nil {
+				return err
+			}
+
 			// process nextline
 
 		} else {
@@ -648,23 +652,101 @@ func (imp *CiscoImporter) Processv4LocalPrf(rr gosnappi.BgpV4RouteRange, row int
 	return nil
 }
 
-func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int) error {
+func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int, origin gosnappi.BgpRouteAdvancedOriginEnum) error {
 	nextLine := imp.routeLines[row]
 
 	token := nextLine[imp.POS_CISCO_HEADER_PATH : len(nextLine)-2]
 	token = strings.Trim(token, " ")
 	log.Info().Msgf("Row: %d, aspath:%s", row, token)
-	/*if len(token) > 0 {
-		if locprf, err := strconv.Atoi(token); err == nil {
-			//return nil, mask, err
-			rr.Advanced().SetIncludeLocalPreference(true)
-			rr.Advanced().SetLocalPreference(int32(locprf))
-		} else {
-			return fmt.Errorf("invalid Local Pref: %q for processing at row %d, error: %s", token, row, err.Error())
+	if len(token) > 0 {
+		asPath := rr.AsPath()
+		if origin == gosnappi.BgpRouteAdvancedOrigin.EGP {
+			asPath.SetAsSetMode(gosnappi.BgpAsPathAsSetMode.INCLUDE_AS_SEQ)
 		}
-	}*/
+		asNums := strings.Fields(token)
+		var last, cur gosnappi.BgpAsPathSegmentTypeEnum
+		var err error = nil
+		var index int = 0
+		segNums := []uint32{}
+		asSeg := asPath.Segments().Add()
+		last = gosnappi.BgpAsPathSegmentType.AS_SEQ
+		asSeg.SetType(gosnappi.BgpAsPathSegmentTypeEnum(last))
+		for index < len(asNums) {
+			numStr := asNums[index]
+			newSegP, newSegN := false, false
+			if cur, err = getAsPathSegType(numStr[0]); err != nil {
+				return err
+			}
+			if last == gosnappi.BgpAsPathSegmentType.AS_SEQ {
+				if cur != gosnappi.BgpAsPathSegmentType.AS_SEQ {
+					newSegN = true
+					numStr = numStr[1:]
+					last = cur
+				}
+			} else if cur != gosnappi.BgpAsPathSegmentType.AS_SEQ {
+				return fmt.Errorf("incorrect format of as path segment 1: %v", token)
+			}
+			if curT, err := getAsPathSegType(numStr[len(numStr)-1]); err != nil {
+				return err
+			} else if curT != gosnappi.BgpAsPathSegmentType.AS_SEQ {
+				if last != curT {
+					return fmt.Errorf("incorrect format of as path segment 2: %v", token)
+				}
+				newSegP = true
+				numStr = numStr[:len(numStr)-1]
+			}
+
+			if newSegN {
+				if len(segNums) > 0 {
+					asSeg.SetAsNumbers(segNums)
+					segNums = []uint32{}
+					asSeg = asPath.Segments().Add()
+				}
+				asSeg.SetType(gosnappi.BgpAsPathSegmentTypeEnum(cur))
+			}
+			if asNum, err := strconv.Atoi(numStr); err != nil {
+				return err
+			} else {
+				segNums = append(segNums, uint32(asNum))
+			}
+			if newSegP {
+				asSeg.SetAsNumbers(segNums)
+				segNums = []uint32{}
+				if index+1 < len(asNums) {
+					asSeg = asPath.Segments().Add()
+					last = gosnappi.BgpAsPathSegmentType.AS_SEQ
+				}
+			}
+			index++
+		}
+		if len(segNums) > 0 {
+			asSeg.SetAsNumbers(segNums)
+		}
+	}
 
 	return nil
+}
+
+func getAsPathSegType(b byte) (gosnappi.BgpAsPathSegmentTypeEnum, error) {
+	switch b {
+	case '{':
+		fallthrough
+	case '}':
+		return gosnappi.BgpAsPathSegmentType.AS_SET, nil
+	case '[':
+		fallthrough
+	case ']':
+		return gosnappi.BgpAsPathSegmentType.AS_CONFED_SET, nil
+	case '(':
+		fallthrough
+	case ')':
+		return gosnappi.BgpAsPathSegmentType.AS_CONFED_SEQ, nil
+	default:
+		if b >= '1' && b <= '9' {
+			return gosnappi.BgpAsPathSegmentType.AS_SEQ, nil
+		}
+	}
+	return gosnappi.BgpAsPathSegmentType.AS_SEQ, fmt.Errorf("Invalid aspath segment marker %v", b)
 }
 
 func (imp *CiscoImporter) Processv4Metric(rr gosnappi.BgpV4RouteRange, row int) error {
