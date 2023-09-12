@@ -657,9 +657,13 @@ func (imp *CiscoImporter) Processv4LocalPrf(rr gosnappi.BgpV4RouteRange, row int
 func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int, asType gosnappi.BgpV4PeerAsTypeEnum) error {
 	nextLine := imp.routeLines[row]
 
+	if len(nextLine) <= (imp.POS_CISCO_HEADER_PATH + 2) {
+		// skip line, no as path
+		return nil
+	}
 	token := nextLine[imp.POS_CISCO_HEADER_PATH : len(nextLine)-2]
 	token = strings.Trim(token, " ")
-	log.Info().Msgf("Row: %d, aspath:%s", row, token)
+	log.Debug().Msgf("Row: %d, aspath:%s", row, token)
 	if len(token) > 0 {
 		asPath := rr.AsPath()
 		if asType == gosnappi.BgpV4PeerAsType.EBGP {
