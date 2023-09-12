@@ -744,7 +744,7 @@ func getAsPathSegType(b byte) (gosnappi.BgpAsPathSegmentTypeEnum, error) {
 	case ')':
 		return gosnappi.BgpAsPathSegmentType.AS_CONFED_SEQ, nil
 	default:
-		if b >= '1' && b <= '9' {
+		if b >= '0' && b <= '9' {
 			return gosnappi.BgpAsPathSegmentType.AS_SEQ, nil
 		}
 	}
