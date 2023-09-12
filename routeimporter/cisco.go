@@ -51,6 +51,7 @@ const (
 type RRInfo struct {
 	Row    int
 	Name   string
+	AsType gosnappi.BgpV4PeerAsTypeEnum
 	TypeV4 bool // if IPv4 type
 	RRv4   gosnappi.BgpV4RouteRange
 	RRv6   gosnappi.BgpV6RouteRange
@@ -438,6 +439,7 @@ func (imp *CiscoImporter) AddRR(peer gosnappi.BgpV4Peer, row int, routeType Rout
 	case RouteTypeIpv4:
 		rr := peer.V4Routes().Add()
 		rrInfo := RRInfo{
+			AsType: peer.AsType(),
 			TypeV4: true,
 			Row:    row,
 			RRv4:   rr,
@@ -446,6 +448,7 @@ func (imp *CiscoImporter) AddRR(peer gosnappi.BgpV4Peer, row int, routeType Rout
 	case RouteTypeIpv6:
 		rr := peer.V6Routes().Add()
 		rrInfo := RRInfo{
+			AsType: peer.AsType(),
 			TypeV4: false,
 			Row:    row,
 			RRv6:   rr,
@@ -545,8 +548,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			imp.Processv4Metric(rr, row)
 
 			// process origin
-			var origin gosnappi.BgpRouteAdvancedOriginEnum
-			if err, origin = getOriginValue(nextLine[len(nextLine)-1:]); err == nil {
+			if err, origin := getOriginValue(nextLine[len(nextLine)-1:]); err == nil {
 				rr.Advanced().SetIncludeOrigin(true)
 				rr.Advanced().SetOrigin(origin)
 			} else {
@@ -554,7 +556,7 @@ func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 			}
 
 			// process ASPath
-			if err = imp.Processv4AsPath(rr, row, origin); err != nil {
+			if err = imp.Processv4AsPath(rr, row, rri.AsType); err != nil {
 				return err
 			}
 
@@ -652,7 +654,7 @@ func (imp *CiscoImporter) Processv4LocalPrf(rr gosnappi.BgpV4RouteRange, row int
 	return nil
 }
 
-func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int, origin gosnappi.BgpRouteAdvancedOriginEnum) error {
+func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int, asType gosnappi.BgpV4PeerAsTypeEnum) error {
 	nextLine := imp.routeLines[row]
 
 	token := nextLine[imp.POS_CISCO_HEADER_PATH : len(nextLine)-2]
@@ -660,7 +662,7 @@ func (imp *CiscoImporter) Processv4AsPath(rr gosnappi.BgpV4RouteRange, row int, 
 	log.Info().Msgf("Row: %d, aspath:%s", row, token)
 	if len(token) > 0 {
 		asPath := rr.AsPath()
-		if origin == gosnappi.BgpRouteAdvancedOrigin.EGP {
+		if asType == gosnappi.BgpV4PeerAsType.EBGP {
 			asPath.SetAsSetMode(gosnappi.BgpAsPathAsSetMode.INCLUDE_AS_SEQ)
 		}
 		asNums := strings.Fields(token)
