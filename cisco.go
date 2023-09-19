@@ -238,18 +238,20 @@ func (imp *CiscoImporter) ProcessRR(rre *rrEntry, ic *ImportConfig) {
 	var rrV4 gosnappi.BgpV4RouteRange = nil
 	network := rre.Prefix
 
-	// TODO - overflow processing, max limit?
 	nextHop := ""
 	if ic.RetainNexthop {
-		// TODO - check for next hop empty?
-		nextHop = imp.ParseNext(imp.POS_CISCO_HEADER_NEXT_HOP, imp.POS_CISCO_HEADER_METRIC, &rre.Row)
+		if nextHop = imp.ParseNext(imp.POS_CISCO_HEADER_NEXT_HOP, imp.POS_CISCO_HEADER_METRIC, &rre.Row); nextHop == "" {
+			pErr := fmt.Errorf("no nexthop found (line %d)", rre.Row+1)
+			log.Info().Msgf(pErr.Error())
+			rre.Err = &pErr
+			return
+		}
 	}
 	metric := imp.ParseNext(imp.POS_CISCO_HEADER_METRIC, imp.POS_CISCO_HEADER_LOC_PRF, &rre.Row)
 	locPrf := imp.ParseNext(imp.POS_CISCO_HEADER_LOC_PRF, imp.POS_CISCO_HEADER_WEIGHT, &rre.Row)
 	// weight := imp.ParseNext(imp.POS_CISCO_HEADER_WEIGHT, imp.POS_CISCO_HEADER_PATH, &rre.Row)
 	path := imp.ParseNext(imp.POS_CISCO_HEADER_PATH, len(imp.lines[rre.Row]), &rre.Row)
 
-	// fmt.Printf("ROW %d P %s H %s M %s L %s W %s P %s E %+v\n", rre.Row+1, rre.Prefix, nextHop, metric, locPrf, weight, path, rre.Err)
 	if ip, mask, err = ParseNetworkAddress(network); err != nil {
 		pErr := fmt.Errorf("Row: %d, Network Address parsing error:%s", rre.Row+1, err.Error())
 		log.Info().Msgf(pErr.Error())
@@ -272,7 +274,6 @@ func (imp *CiscoImporter) ProcessRR(rre *rrEntry, ic *ImportConfig) {
 			}
 		}
 
-		// TODO - weight processing pending
 		// process local Pref
 		if err = imp.Processv4LocalPrf(rrV4, locPrf, rre.Row); err == nil {
 			// process MED
@@ -298,8 +299,6 @@ func (imp *CiscoImporter) ProcessRR(rre *rrEntry, ic *ImportConfig) {
 		}
 
 		return
-	} else {
-		// TODO - Currently not supported
 	}
 }
 
@@ -432,14 +431,8 @@ func getAsPathSegType(b byte) (gosnappi.BgpAsPathSegmentTypeEnum, error) {
 }
 
 func (imp *CiscoImporter) Processv4Metric(rr gosnappi.BgpV4RouteRange, token string, row int) error {
-	// TODO - verify logic
-	tokens := strings.Fields(token)
-	medstr := ""
-	if len(tokens) > 0 {
-		medstr = tokens[0]
-	}
-	if len(medstr) > 0 {
-		if med, err := strconv.Atoi(medstr); err == nil {
+	if len(token) > 0 {
+		if med, err := strconv.Atoi(token); err == nil {
 			rr.Advanced().SetIncludeMultiExitDiscriminator(true)
 			rr.Advanced().SetMultiExitDiscriminator(uint32(med))
 		} else {
