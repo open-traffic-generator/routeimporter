@@ -1,4 +1,4 @@
-module github.com/open-traffic-generator/otg-route-importer/routeimporter
+module github.com/open-traffic-generator/routeimporter
 
 go 1.19
 

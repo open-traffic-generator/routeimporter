@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/open-traffic-generator/otg-route-importer/routeimporter"
+	"github.com/open-traffic-generator/routeimporter"
 	"github.com/open-traffic-generator/snappi/gosnappi"
 )
 
