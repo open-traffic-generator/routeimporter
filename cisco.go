@@ -216,7 +216,7 @@ func (imp *CiscoImporter) GetHeaderPositions(line string) error {
 
 func (imp *CiscoImporter) ParseNext(pos int, next int, row *int) string {
 	line := imp.lines[*row]
-	for len(line) <= pos {
+	for len(line) <= pos || line[pos-1] != SPACE_CHAR {
 		if len(imp.lines) <= *row || isValidRoute(&imp.lines[*row+1]) {
 			return ""
 		}
@@ -230,7 +230,6 @@ func (imp *CiscoImporter) ParseNext(pos int, next int, row *int) string {
 	}
 }
 
-// func (imp *CiscoImporter) ProcessRR(rri RRInfo, ic *ImportConfig) error {
 func (imp *CiscoImporter) ProcessRR(rre *rrEntry, ic *ImportConfig) {
 	var ip net.IP
 	var mask int
@@ -455,20 +454,6 @@ func getOriginValue(origin string) (error, gosnappi.BgpRouteAdvancedOriginEnum) 
 		}
 	}
 	return fmt.Errorf("unknown origin string: %q", origin), gosnappi.BgpRouteAdvancedOrigin.INCOMPLETE
-}
-
-func ParseNetworkType(line string) (net.IP, error) {
-	var ip net.IP
-	splits := strings.Split(line, "/")
-	cnt := len(splits)
-	if cnt > 0 {
-		if ip = net.ParseIP(splits[0]); ip == nil {
-			return nil, fmt.Errorf("not valid ip address : %q", splits[0])
-		}
-		return ip, nil
-	}
-
-	return nil, fmt.Errorf("not valid network address : %q", line)
 }
 
 func ParseNetworkAddress(line string) (net.IP, int, error) {
