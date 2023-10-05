@@ -28,13 +28,13 @@ const (
 
 // Import configuration specified parameters to control import behavior
 type ImportConfig struct {
-	NamePrefix        string
-	RRType            RouteType // detect route address type
-	BestRoutes        bool      // import best routes only
-	RetainNexthop     bool      // retain next hop
-	SequentialProcess bool
-	Targetv4Peers     []gosnappi.BgpV4Peer
-	Targetv6Peers     []gosnappi.BgpV6Peer
+	NamePrefix        string               // Route name prefix
+	RRType            RouteType            // detect route address type
+	BestRoutes        bool                 // import best routes only
+	RetainNexthop     bool                 // retain next hop
+	SequentialProcess bool                 // Process in sequence
+	Targetv4Peers     []gosnappi.BgpV4Peer // Target v4 peer that is updated with valid v4 routes
+	Targetv6Peers     []gosnappi.BgpV6Peer // Target v6 peer that is updated with valid v6 routes
 }
 
 type ImportService interface {
