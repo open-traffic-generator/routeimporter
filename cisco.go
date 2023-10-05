@@ -134,7 +134,7 @@ func (imp *CiscoImporter) ImportRoutes(ic ImportConfig, buffer *[]byte) (*[]stri
 	for _, rre := range rrEntryList {
 		if rre.RRv4 != nil {
 			imp.PeerV4.V4Routes().Append(rre.RRv4)
-			name := fmt.Sprintf("%s-%d", ic.SessionName, rre.Row)
+			name := fmt.Sprintf("%s-%d", ic.NamePrefix, rre.Row)
 			route_names = append(route_names, name)
 			imp.validRoutes++
 		} else {
@@ -257,7 +257,7 @@ func (imp *CiscoImporter) ProcessRR(rre *rrEntry, ic *ImportConfig) {
 		rre.Err = &pErr
 		return
 	}
-	name := fmt.Sprintf("%s-%d", ic.SessionName, rre.Row+1)
+	name := fmt.Sprintf("%s-%d", ic.NamePrefix, rre.Row+1)
 	if ip.To4() != nil && (ic.RRType == RouteTypeIpv4 || ic.RRType == RouteTypeAuto) {
 		rrV4 = gosnappi.NewBgpV4RouteRange()
 		rrV4.SetName(name)

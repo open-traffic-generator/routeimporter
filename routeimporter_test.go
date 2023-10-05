@@ -4,11 +4,19 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/open-traffic-generator/routeimporter"
 	"github.com/open-traffic-generator/snappi/gosnappi"
 )
+
+type REntry struct {
+	Address string
+	Prefix  uint32
+	NextHop string
+	Path    string
+}
 
 func TestImportRoutesPopulateConfig(t *testing.T) {
 	api := gosnappi.NewApi()
@@ -36,7 +44,7 @@ func TestImportRoutesPopulateConfig(t *testing.T) {
 	}
 
 	ic := routeimporter.ImportConfig{
-		SessionName:   "txImp",
+		NamePrefix:    "txImp",
 		RRType:        routeimporter.RouteTypeIpv4,
 		RetainNexthop: true,
 		BestRoutes:    true,
@@ -82,7 +90,7 @@ func TestImportRoutesSimpleV4(t *testing.T) {
 	}
 
 	ic := routeimporter.ImportConfig{
-		SessionName:   "txImp",
+		NamePrefix:    "txImp",
 		RRType:        routeimporter.RouteTypeIpv4,
 		RetainNexthop: true,
 		BestRoutes:    true,
@@ -109,7 +117,7 @@ func TestImportRoutesSimpleV4(t *testing.T) {
 		return
 	}
 	ic = routeimporter.ImportConfig{
-		SessionName:   "txImp",
+		NamePrefix:    "txImp",
 		RRType:        routeimporter.RouteTypeIpv4,
 		RetainNexthop: true,
 		BestRoutes:    false,
@@ -125,28 +133,9 @@ func TestImportRoutesSimpleV4(t *testing.T) {
 		t.Errorf("Could not successfully imported all routes. Expected Route Count: %d, Imported Routes Count: %d", expRouteCount, len(*names))
 		fmt.Printf("imported routes name: %v", names)
 	}
-
-	/*peer := ic.Targetv4Peers[0]
-	for _, rr := range peer.V4Routes().Items() {
-		addr := rr.Addresses()
-		for _, aa := range addr.Items() {
-			log.Info().Msgf("RR-%q (detail): %v, %v, %v, Nexthop: %v", rr.Name(), aa.Address(), aa.Count(), aa.Prefix(), rr.NextHopIpv4Address())
-		}
-		if rr.Advanced().HasLocalPreference() {
-			log.Info().Msgf("RR-%q (detail): LocalPre: %v", rr.Name(), rr.Advanced().LocalPreference())
-		}
-		if rr.Advanced().HasIncludeMultiExitDiscriminator() {
-			log.Info().Msgf("RR-%q (detail): MED: %v", rr.Name(), rr.Advanced().MultiExitDiscriminator())
-		}
-		if rr.Advanced().HasIncludeOrigin() {
-			log.Info().Msgf("RR-%q (detail): Origin: %v", rr.Name(), rr.Advanced().Origin())
-		}
-	}*/
-
-	//t.Logf("\n***** importer: %v", is)
 }
 
-func TestImportRoutes1MV4(t *testing.T) {
+func TestImportRoutes1KV4(t *testing.T) {
 	fmt.Printf("Number of cores: %d\n", runtime.NumCPU())
 
 	is, err := routeimporter.GetImporterService(routeimporter.ImportFileTypeCisco)
@@ -154,7 +143,7 @@ func TestImportRoutes1MV4(t *testing.T) {
 		t.Errorf(fmt.Sprintf("Could not create Route Importer Service. Error: %v", err))
 	}
 
-	filename := "resource/cisco_v4_1M.txt"
+	filename := "resource/cisco_v4_1K.txt"
 	fb, err := os.ReadFile(filename)
 
 	if err != nil {
@@ -163,7 +152,7 @@ func TestImportRoutes1MV4(t *testing.T) {
 	}
 
 	ic := routeimporter.ImportConfig{
-		SessionName:   "txImp",
+		NamePrefix:    "txImp",
 		RRType:        routeimporter.RouteTypeIpv4,
 		RetainNexthop: true,
 		BestRoutes:    false,
@@ -171,12 +160,37 @@ func TestImportRoutes1MV4(t *testing.T) {
 		Targetv6Peers: []gosnappi.BgpV6Peer{},
 	}
 
-	expRouteCount := 1000001
+	expRouteCount := 1000
 	names, err := is.ImportRoutes(ic, &fb)
 	if err != nil {
 		t.Errorf(fmt.Sprintf("Could not import routes. error: %v", err))
 	} else if len(*names) != expRouteCount {
 		t.Errorf("Could not successfully imported all routes. Expected Route Count: %d, Imported Routes Count: %d", expRouteCount, len(*names))
 		fmt.Printf("imported routes name: %v", names)
+	}
+
+	rEntryList := []REntry{
+		{Address: "1.0.141.0", Prefix: 24, NextHop: "203.119.104.2", Path: "[4608,6939,38040,23969,23969]"},
+		{Address: "1.0.144.0", Prefix: 20, NextHop: "203.119.104.1", Path: "[4608,4651,23969]"},
+		{Address: "1.0.160.0", Prefix: 19, NextHop: "202.12.28.1", Path: "[4777,6939,38040,23969]"},
+		{Address: "1.0.169.0", Prefix: 24, NextHop: "203.119.104.1", Path: "[4608,6939,38040,23969]"},
+		{Address: "1.6.134.0", Prefix: 23, NextHop: "203.119.104.1", Path: "[4608,24115,9583]"},
+	}
+
+	for _, rr := range ic.Targetv4Peers[0].V4Routes().Items() {
+		addr := rr.Addresses().Items()[0]
+		path := rr.AsPath().Segments().Items()[0]
+		pathStr := strings.Join(strings.Fields(fmt.Sprint(path.AsNumbers())), ",")
+		for i, entry := range rEntryList {
+			if addr.Address() == entry.Address &&
+				addr.Prefix() == entry.Prefix &&
+				rr.NextHopIpv4Address() == entry.NextHop &&
+				pathStr == entry.Path {
+				rEntryList = append(rEntryList[:i], rEntryList[i+1:]...)
+			}
+		}
+	}
+	if len(rEntryList) > 0 {
+		t.Errorf("Could not successfully imported all routes. Number of missing routes found: %d", len(rEntryList))
 	}
 }

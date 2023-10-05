@@ -28,7 +28,7 @@ const (
 
 // Import configuration specified parameters to control import behavior
 type ImportConfig struct {
-	SessionName       string
+	NamePrefix        string
 	RRType            RouteType // detect route address type
 	BestRoutes        bool      // import best routes only
 	RetainNexthop     bool      // retain next hop
