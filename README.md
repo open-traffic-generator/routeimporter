@@ -13,7 +13,6 @@ The code snippet, in golang, illustrates how the package can be used to import B
 	 txPeerBgp := device.Bgp()
 	 ipv4InterfaceBgp4 := txPeerBgp.Ipv4Interfaces().Items()[0]
 	 txPeer := ipv4InterfaceBgp4.Peers().Items()[0]
-	 txgroup := txPeer.V4RouteGroups().Add().SetName("groupTxV4")
 	 filename := "./cisco_v4_1M.txt"
 
 	 fb, err := os.ReadFile(filename)
@@ -38,12 +37,12 @@ The code snippet, in golang, illustrates how the package can be used to import B
 		 // Error
 	 }
 
-	 // Import routes based on the config. On success Targetv4Peers / Targetv6Peers gets updated with valid routes.
-	 names, err := is.ImportRoutes(ic, &fb)
+	 // Import routes based on the config. On success Targetv4Peers / Targetv6Peers
+         // gets updated with valid routes.
+	 _, err := is.ImportRoutes(ic, &fb)
 	 if err != nil {
 		 // Error
 	 }
-	 txgroup.SetRouteNames(*names)
 	 //----------------------------------------------------------------------------
 	 // End import route from file
 	 //----------------------------------------------------------------------------
