@@ -52,6 +52,4 @@ The code snippet, in golang, illustrates how the package can be used to import B
 ```
 
 ## For development
-   Clone package
-   
-   Files to be updated
+   The package can be extended to support other vendor formats. Add a new import service in routeimporter.go for each new vendor. ImportRoutes api for new import service is expected to process route import file and update the target BGP peer with valid routes. Developers can add new additional config parameters in api.go definition.  
