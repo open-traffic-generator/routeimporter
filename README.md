@@ -22,7 +22,7 @@ The code snippet, in golang, illustrates how the package can be used to import B
 
 	 // ImportConfig defines various import parameters that dictates the import processing
 	 ic := routeimporter.ImportConfig{
-		 SessionName:      "txImp",
+		 NamePrefix:       "txImp",
 		 RRType:           routeimporter.RouteTypeIpv4,
 		 BestRoutes:       true,
 		 RetainNexthop:    false,
