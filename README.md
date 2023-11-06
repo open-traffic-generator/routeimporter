@@ -1,5 +1,5 @@
 # OTG Route Importer
-OTG route importer is an utility library for importing BGP routes that are saved in vendor specific format to Open Traffic Generator configuration. Current support is for Cisco specifc saved routes (extendable to any vendor specific route format). Users can add support and extend the library for other vendor specific file formats.
+OTG route importer is an utility library for importing BGP routes that are saved in vendor specific format to Open Traffic Generator configuration. Current support is for output of Cisco IOS specific show routes output(extendable to any vendor specific route format). Users can add support and extend the library for other vendor specific file formats.
 
 
 ## Start Using
